@@ -36,25 +36,29 @@ class Metrics(Callback):
         val_targ_onehot = self.validation_data[2]
         val_predict = np.argmax(val_predict_onehot, axis=1)
         val_targ = np.argmax(val_targ_onehot, axis=1)
-        _val_f1 = f1_score(val_targ, val_predict)
-        _val_recall = recall_score(val_targ, val_predict)
-        _val_precision = precision_score(val_targ, val_predict)
-        _val_auc = roc_auc_score(val_targ, val_predict)
+        #_val_f1 = f1_score(val_targ, val_predict)
+        #_val_recall = recall_score(val_targ, val_predict)
+        #_val_precision = precision_score(val_targ, val_predict)
+        #_val_auc = roc_auc_score(val_targ, val_predict)
         _val_acc = accuracy_score(val_targ, val_predict)
-        self.val_f1s.append(_val_f1)
-        self.val_recalls.append(_val_recall)
-        self.val_precisions.append(_val_precision)
-        self.val_auc.append(_val_auc)
+        #self.val_f1s.append(_val_f1)
+        #self.val_recalls.append(_val_recall)
+        #self.val_precisions.append(_val_precision)
+        #self.val_auc.append(_val_auc)
         self.val_acc.append(_val_acc)
-        print("Epoch: %d - val_accuracy: % f - val_precision: % f - val_recall % f val_f1: %f auc: %f" % (
-            epoch, _val_acc, _val_precision, _val_recall, _val_f1, _val_auc))
+        #print("Epoch: %d - val_accuracy: % f - val_precision: % f - val_recall % f val_f1: %f auc: %f" % (
+        #    epoch, _val_acc, _val_precision, _val_recall, _val_f1, _val_auc))
+        #self.log_file.write(
+        #    "Epoch: %d - val_accuracy: % f - val_precision: % f - val_recall % f val_f1: %f auc: %f\n" % (epoch,
+        #                                                                                                  _val_acc,
+        #                                                                                                  _val_precision,
+        #                                                                                                  _val_recall,
+        #                                                                                                  _val_f1,
+        #                                                                                                  _val_auc))
+        print("Epoch: %d - val_accuracy: % f" % (
+            epoch, _val_acc))
         self.log_file.write(
-            "Epoch: %d - val_accuracy: % f - val_precision: % f - val_recall % f val_f1: %f auc: %f\n" % (epoch,
-                                                                                                          _val_acc,
-                                                                                                          _val_precision,
-                                                                                                          _val_recall,
-                                                                                                          _val_f1,
-                                                                                                          _val_auc))
+            "Epoch: %d - val_accuracy: % f\n" % (epoch, _val_acc))
         return
 
 
@@ -211,7 +215,10 @@ class Defend():
 
         sentence_input = Input(shape=(self.MAX_SENTENCE_LENGTH,), dtype='int32')
         embedded_sequences = embedding_layer(sentence_input)
-        l_lstm = Bidirectional(GRU(100, return_sequences=True), name='word_lstm')(embedded_sequences)
+        # change
+        embedded_sequences = Lambda(lambda x: x, output_shape=lambda s: s)(embedded_sequences)
+        l_lstm = Bidirectional(GRU(100, return_sequences=True), name='word_lstm')(Reshape((120, 100))(embedded_sequences))
+        # change
         l_att = AttLayer(name='word_attention')(l_lstm)
         sentEncoder = Model(sentence_input, l_att)
         # plot_model(sentEncoder, to_file='SentenceEncoder.png', show_shapes=True)
@@ -227,7 +234,10 @@ class Defend():
         # learn comments representations
         comment_input = Input(shape=(self.MAX_COMS_LENGTH,), dtype='int32')
         com_embedded_sequences = com_embedding_layer(comment_input)
-        c_lstm = Bidirectional(GRU(100, return_sequences=True), name='comment_lstm')(com_embedded_sequences)
+        # change
+        com_embedded_sequences = Lambda(lambda x: x, output_shape=lambda s: s)(com_embedded_sequences)
+        c_lstm = Bidirectional(GRU(100, return_sequences=True), name='comment_lstm')(Reshape((100, 120))(com_embedded_sequences))
+        # change
         c_att = AttLayer(name='comment_word_attention')(c_lstm)
         comEncoder = Model(comment_input, c_att, name='comment_word_level_encoder')
         # plot_model(comEncoder, to_file='CommentEncoder.png', show_shapes=True)
@@ -349,10 +359,10 @@ class Defend():
             }
             pickle.dump(tokenizer_state, open(path, "wb"))
 
-    def train(self, train_x, train_y, train_c, val_c, val_x, val_y,
+    def train(self, train_x, train_y, train_c, val_c, val_x, val_y, saved_model_filename, 
               batch_size=20, epochs=10,
               embeddings_path=False,
-              saved_model_dir='saved_models', saved_model_filename=None, ):
+              saved_model_dir='./static/saved_models'):
         # Fit the vocabulary set on the content and comments
         self._fit_on_texts_and_comments(train_x, train_c, val_x, val_c)
         self.model = self._build_model(
